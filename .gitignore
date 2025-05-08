@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Mengabaikan direktori target (kecuali file .jar)
+target/*
+!target/*.jar
