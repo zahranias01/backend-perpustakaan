@@ -28,7 +28,23 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())  // Menonaktifkan CSRF untuk API
             .cors(Customizer.withDefaults()) // Mengaktifkan CORS
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/**", "/api/buku/**", "/api/reviews/**", "/api/buku/search").permitAll() // Pastikan /api/buku/search diizinkan
+                .requestMatchers(
+                    "/auth/**",
+                    "/api/buku/**",
+                    "/api/reviews/**",
+                    "/api/buku/search",
+                    "/api/chat/**",
+                    "/api/informatika/**",
+                    "/api/penerbangan/**",
+                    "/api/elektronika/**",
+                    "/api/akutansi/**",
+                    "/api/manajemen/**",
+                    "/api/industri/**",
+                    "/api/bahasa/**",
+                    "/api/bisnis/**",
+                    "/api/filsafat/**",
+                    "/api/agama/**",
+                    "/api/sejarah/**").permitAll() // Pastikan /api/buku/search diizinkan
                 .anyRequest().authenticated()  // Endpoint lainnya butuh login
             );
 
