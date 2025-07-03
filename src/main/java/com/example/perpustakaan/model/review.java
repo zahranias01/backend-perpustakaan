@@ -1,35 +1,74 @@
-package com.example.perpustakaan.model;  // Sesuaikan dengan package yang benar
+package com.example.perpustakaan.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import java.util.Date;
 
 @Entity
-public class review {  // Nama kelas diubah menjadi Review
+public class Review {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;  // Bisa diganti Integer jika Anda lebih suka konsisten dengan tipe data lainnya
+    private Long id;
 
     private String reviewerName;
     private String comment;
-    private int rating; // 1-5
+    private int rating;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date reviewDate = new Date();
 
     @ManyToOne
-    @JoinColumn(name = "book_id")  // Pastikan kolom ini mengarah ke book_id di tabel review
-    private Book book;  // Properti untuk relasi ke Book
+    @JoinColumn(name = "biblio_id") // Nama kolom foreign key sesuai dengan database
+    @JsonIgnore // Opsional: untuk mencegah serialisasi book ke JSON
+    private Book book;
 
-    // Getters and setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    // === Getters and Setters ===
+    public Long getId() {
+        return id;
+    }
 
-    public String getReviewerName() { return reviewerName; }
-    public void setReviewerName(String reviewerName) { this.reviewerName = reviewerName; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
+    public String getReviewerName() {
+        return reviewerName;
+    }
 
-    public int getRating() { return rating; }
-    public void setRating(int rating) { this.rating = rating; }
+    public void setReviewerName(String reviewerName) {
+        this.reviewerName = reviewerName;
+    }
 
-    public Book getBook() { return book; }  // Getter untuk Book
-    public void setBook(Book book) { this.book = book; }  // Setter untuk Book
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
+    }
+
+    public int getRating() {
+        return rating;
+    }
+
+    public void setRating(int rating) {
+        this.rating = rating;
+    }
+
+    public Date getReviewDate() {
+        return reviewDate;
+    }
+
+    public void setReviewDate(Date reviewDate) {
+        this.reviewDate = reviewDate;
+    }
+
+    public Book getBook() {
+        return book;
+    }
+
+    public void setBook(Book book) {
+        this.book = book;
+    }
 }

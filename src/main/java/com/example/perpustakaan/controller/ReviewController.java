@@ -1,6 +1,7 @@
 package com.example.perpustakaan.controller;
 
-import com.example.perpustakaan.model.review;  // Gunakan Review dengan huruf kapital
+import com.example.perpustakaan.model.Book;
+import com.example.perpustakaan.model.Review;
 import com.example.perpustakaan.repository.BookRepository;
 import com.example.perpustakaan.repository.ReviewRepository;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/reviews")
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class ReviewController {
 
     private final ReviewRepository reviewRepository;
@@ -20,17 +22,19 @@ public class ReviewController {
         this.bookRepository = bookRepository;
     }
 
-    @PostMapping("/{bookId}")
-    public ResponseEntity<String> addReview(@PathVariable Integer bookId, @RequestBody review review) {
-        return bookRepository.findById(bookId).map(book -> {
+    // Tambah review berdasarkan ID buku
+    @PostMapping("/{biblioId}")
+    public ResponseEntity<String> addReview(@PathVariable Integer biblioId, @RequestBody Review review) {
+        return bookRepository.findById(biblioId).map(book -> {
             review.setBook(book);
             reviewRepository.save(review);
-            return ResponseEntity.ok("Review added successfully.");
+            return ResponseEntity.ok("Review berhasil ditambahkan.");
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/{bookId}")
-    public List<review> getReviews(@PathVariable Integer bookId) {
-        return reviewRepository.findByBook_BiblioId(bookId);
+    // Ambil review berdasarkan ID buku
+    @GetMapping("/{biblioId}")
+    public List<Review> getReviews(@PathVariable Integer biblioId) {
+        return reviewRepository.findByBook_BiblioId(biblioId);
     }
 }

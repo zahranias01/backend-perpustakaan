@@ -21,3 +21,4 @@ public class ChatMessage {
         this.message = message;
     }
 }
+

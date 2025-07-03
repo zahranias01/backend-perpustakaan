@@ -8,9 +8,15 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import org.springframework.security.config.http.SessionCreationPolicy; // Tambahkan ini
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.example.perpustakaan.config.JwtAuthenticationFilter; // kalau filternya di package config
+import com.example.perpustakaan.model.JwtUtil; // kalau pakai constructor injection
+
 
 import java.util.List;
 
@@ -22,18 +28,32 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    private final JwtUtil jwtUtil;
+
+    public SecurityConfig(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        return new JwtAuthenticationFilter(jwtUtil);
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())  // Menonaktifkan CSRF untuk API
-            .cors(Customizer.withDefaults()) // Mengaktifkan CORS
+           .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+           .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/auth/**",
                     "/api/buku/**",
                     "/api/reviews/**",
                     "/api/buku/search",
+                    "/api/buku/top-rated",
                     "/api/chat/**",
+                    "/api/chatbot/**",
                     "/api/informatika/**",
                     "/api/penerbangan/**",
                     "/api/elektronika/**",
@@ -44,25 +64,33 @@ public class SecurityConfig {
                     "/api/bisnis/**",
                     "/api/filsafat/**",
                     "/api/agama/**",
-                    "/api/sejarah/**").permitAll() // Pastikan /api/buku/search diizinkan
-                .anyRequest().authenticated()  // Endpoint lainnya butuh login
-            );
+                    "/api/sejarah/**",
+                    "/api/administrasinegara/**"
+                ).permitAll()
+                .requestMatchers("/api/bookmark/**").authenticated()
+                .anyRequest().authenticated()
+            )
 
-        return http.build();
-    }
+            .formLogin(form -> form.disable())
+            .httpBasic(httpBasic -> httpBasic.disable())
+           .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
-    // Bean untuk konfigurasi CORS
+            return http.build();
+        }
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));  // URL frontend
+        config.setAllowedOrigins(List.of(
+            "http://localhost:5173",
+            "https://nurtanio-perpustakaan.netlify.app"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);  // Mengizinkan cookies atau session
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
     }
 }
-

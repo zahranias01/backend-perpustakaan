@@ -1,5 +1,6 @@
 package com.example.perpustakaan.controller;
 
+import com.example.perpustakaan.model.JwtUtil;
 import com.example.perpustakaan.model.Login;
 import com.example.perpustakaan.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,29 +13,40 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
 public class authController {
 
     @Autowired
     private UserService userService;
 
-    // Endpoint Login
+    @Autowired
+    private JwtUtil jwtUtil; // ✅ ini yang sebelumnya hilang
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Login loginRequest) {
         Login login = userService.findByNpm(loginRequest.getNpm());
 
-        if (login != null && userService.checkPassword(loginRequest.getPassword(), login.getPassword())) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Login sukses! Nama Pengguna: " + login.getNama());
-            response.put("nama", login.getNama());
-            response.put("npm", login.getNpm());
-
-            return ResponseEntity.ok(response);
-        } else {
+        if (login == null) {
             Map<String, String> error = new HashMap<>();
-            error.put("message", "Login gagal, periksa NPM/password!");
+            error.put("message", "NPM tidak ditemukan");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+
+        if (!userService.checkPassword(loginRequest.getPassword(), login.getPassword())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "Password tidak cocok dengan npm");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
         }
+
+        String token = jwtUtil.generateToken(login.getNpm());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Login sukses! Nama Pengguna: " + login.getNama());
+        response.put("nama", login.getNama());
+        response.put("npm", login.getNpm());
+        response.put("token", token);
+
+        return ResponseEntity.ok(response);
     }
 
     // Endpoint Registrasi
@@ -48,9 +60,21 @@ public class authController {
         return ResponseEntity.ok("Registrasi berhasil!!");
     }
 
-    @GetMapping("/test")
-    public ResponseEntity<String> testApi() {
-        return ResponseEntity.ok("✅ Backend aktif dan aman diakses!");
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        // Karena JWT stateless, logout cukup di sisi client
+        return ResponseEntity.ok("Logout berhasil");
     }
 
-}   
+    @GetMapping("/check")
+    public ResponseEntity<?> checkLogin(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            String npm = jwtUtil.validateTokenAndGetNpm(token);
+            if (npm != null) {
+                return ResponseEntity.ok("User masih login dengan NPM: " + npm);
+            }
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token tidak valid atau tidak ada");
+    }
+}

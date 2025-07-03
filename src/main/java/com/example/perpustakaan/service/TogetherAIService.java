@@ -5,9 +5,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -16,42 +15,70 @@ import reactor.core.publisher.Mono;
 
 @Service
 public class TogetherAIService {
+
     private WebClient webClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    @Value("${together.api.key}") private String apiKey;
-    @Value("${together.api.url}") private String apiUrl;
-    @Value("${together.api.model}") private String model;
-    @Autowired private WebClient.Builder builder;
+
+    @Value("${together.api.key}")
+    private String apiKey;
+
+    @Value("${together.api.url}")
+    private String apiUrl;
+
+    @Value("${together.api.model}")
+    private String model;
+
     @PostConstruct
     public void init() {
-        this.webClient = builder.baseUrl(apiUrl).build();
+        this.webClient = WebClient.builder()
+            .baseUrl(apiUrl)
+            .defaultHeader(HttpHeaders.AUTHORIZATION, apiKey)
+            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+            .build();
     }
+
     public Mono<ChatResponse> getChatCompletion(String userMessage) {
-        ObjectNode req = objectMapper.createObjectNode();
-        req.put("model", model);
-        ArrayNode arr = objectMapper.createArrayNode();
-        ObjectNode sys = objectMapper.createObjectNode();
-        sys.put("role", "system");
-        sys.put("content", "Anda adalah asisten perpustakaan yang tahu semua buku, berpengetahuan luas, harus memakai Bahasa Indonesia (selalu pakai) dan juga jangan balas chat selain tentang buku, perpustakaan, rekomendasi buku dan yang tidak berbau buku.");
-        arr.add(sys);
-        ObjectNode user = objectMapper.createObjectNode();
-        user.put("role", "user");
-        user.put("content", userMessage);
-        arr.add(user);
-        req.set("messages", arr);
-        req.put("max_tokens", 512);
-        req.put("temperature", 0.7);
+        ObjectNode request = objectMapper.createObjectNode();
+        request.put("model", model);
+        request.put("temperature", 0.7);
+        request.put("max_tokens", 512);
+
+        ArrayNode messages = objectMapper.createArrayNode();
+
+        ObjectNode systemMessage = objectMapper.createObjectNode();
+        systemMessage.put("role", "system");
+        systemMessage.put("content",
+            "Anda adalah asisten perpustakaan universitas. Jawaban harus menggunakan Bahasa Indonesia. "
+            + "Jangan menjawab pertanyaan di luar topik buku, perpustakaan, rekomendasi, atau layanan kampus."
+            + "Kamu adalah asisten perpustakaan. Tugasmu hanya menjawab sesuai permintaan pengguna. "
+            + "Jika diminta sejumlah buku tertentu, jawab hanya dengan jumlah tersebut tanpa tambahan.");
+        messages.add(systemMessage);
+
+        ObjectNode userMsg = objectMapper.createObjectNode();
+        userMsg.put("role", "user");
+        userMsg.put("content", userMessage);
+        messages.add(userMsg);
+
+        request.set("messages", messages);
+
         return webClient.post()
             .uri("/v1/chat/completions")
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(req.toString())
+            .bodyValue(request.toString())
             .retrieve()
+            .onStatus(status -> status.value() == 429, clientResponse ->
+                Mono.error(new RuntimeException("⚠️ Batas permintaan Together AI tercapai. Silakan coba lagi nanti."))
+            )
             .bodyToMono(JsonNode.class)
-            .map(res -> {
-                String reply = res.path("choices").path(0).path("message").path("content").asText();
-                reply = reply.replaceAll("<think>[\\s\\S]*?<\\/think>\\s*", "").trim();
-                return new ChatResponse(reply);
+            .map(responseJson -> {
+                System.out.println("📦 TogetherAI Response: " + responseJson.toPrettyString());
+                String content = responseJson
+                    .path("choices").path(0).path("message").path("content")
+                    .asText("");
+
+                // Bersihkan tag <think> jika ada
+                content = content.replaceAll("(?s)<think>.*?</think>", "").trim();
+
+                return new ChatResponse(content);
             });
     }
 }
