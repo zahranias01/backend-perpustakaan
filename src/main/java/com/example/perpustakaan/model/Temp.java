@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.util.Date;
 
 @Entity
-public class Review {
+public class Temp {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
