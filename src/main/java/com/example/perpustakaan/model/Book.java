@@ -44,7 +44,7 @@ public class Book {
     private Double rating;
 
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Temp> reviews;
+    private List<Review> reviews;
 
 
     // === Getter dan Setter ===
@@ -142,11 +142,11 @@ public class Book {
         this.rating = rating;
     }
 
-    public List<Temp> getReviews() {
+    public List<Review> getReviews() {
         return reviews;
     }
 
-    public void setReviews(List<Temp> reviews) {
+    public void setReviews(List<Review> reviews) {
         this.reviews = reviews;
     }
     

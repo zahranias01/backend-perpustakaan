@@ -1,7 +1,7 @@
 package com.example.perpustakaan.controller;
 
 import com.example.perpustakaan.model.Book;
-import com.example.perpustakaan.model.Temp;
+import com.example.perpustakaan.model.Review;
 import com.example.perpustakaan.repository.BookRepository;
 import com.example.perpustakaan.repository.ReviewRepository;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +24,7 @@ public class ReviewController {
 
     // Tambah review berdasarkan ID buku
     @PostMapping("/{biblioId}")
-    public ResponseEntity<String> addReview(@PathVariable Integer biblioId, @RequestBody Temp review) {
+    public ResponseEntity<String> addReview(@PathVariable Integer biblioId, @RequestBody Review review) {
         return bookRepository.findById(biblioId).map(book -> {
             review.setBook(book);
             reviewRepository.save(review);
@@ -34,7 +34,7 @@ public class ReviewController {
 
     // Ambil review berdasarkan ID buku
     @GetMapping("/{biblioId}")
-    public List<Temp> getReviews(@PathVariable Integer biblioId) {
+    public List<Review> getReviews(@PathVariable Integer biblioId) {
         return reviewRepository.findByBook_BiblioId(biblioId);
     }
 }
