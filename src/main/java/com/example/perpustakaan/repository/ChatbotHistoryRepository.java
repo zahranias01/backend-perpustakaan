@@ -11,6 +11,7 @@ import java.util.List;
 @Repository
 public interface ChatbotHistoryRepository extends JpaRepository<ChatbotHistory, Long> {
     List<ChatbotHistory> findByNpmOrderByCreatedAtDesc(String npm);
+    List<ChatbotHistory> findTop5ByNpmOrderByCreatedAtDesc(String npm);
 
     @Transactional
     @Modifying

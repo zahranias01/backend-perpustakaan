@@ -9,27 +9,35 @@ public class Classifier{
 
     // Daftar kata kunci untuk kategori lokal (harus sesuai dengan data di database)
     private final List<String> kategoriList = List.of(
-        "informatika", "penerbangan", "akuntansi", "industri",
-        "sejarah", "agama", "filsafat", "bisnis", "manajemen",
-        "elektronika", "bahasa"
+     "informatika", "penerbangan", "akuntansi", "industri",
+            "sejarah", "agama", "filsafat", "bisnis", "manajemen",
+            "elektronika", "bahasa","sistem","computer","komputer","pemrograman","informasi","aircraft","flight","teknik","pajak","ekonomi","kamus"
     );
 
     public String klasifikasikan(String message) {
         String msg = message.toLowerCase();
 
-        // Deteksi jam buka
         if (msg.contains("jam buka") || msg.contains("jam operasional") || msg.contains("buka jam berapa")) {
             return "jam_buka";
         }
 
-        // Deteksi pertanyaan yang menyebutkan kategori lokal
+        boolean containsKategori = false;
         for (String kategori : kategoriList) {
             if (msg.contains(kategori)) {
-                return "lokal";
+                containsKategori = true;
+                break;
             }
         }
 
-        // Default: online (kirim ke TogetherAI)
+        if (containsKategori && msg.contains("luar")) {
+            return "online"; // Jika ada kata 'luar', ambil dari luar (online)
+        }
+
+        if (containsKategori) {
+            return "lokal";
+        }
+
         return "online";
     }
+
 }

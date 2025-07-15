@@ -2,20 +2,19 @@ package com.example.perpustakaan.controller;
 
 import com.example.perpustakaan.model.Book;
 import com.example.perpustakaan.model.ChatResponse;
+import com.example.perpustakaan.model.ChatbotHistory;
 import com.example.perpustakaan.repository.BookRepository;
+import com.example.perpustakaan.repository.ChatbotHistoryRepository;
 import com.example.perpustakaan.service.Classifier;
 import com.example.perpustakaan.service.TogetherAIService;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.*;
+import java.util.regex.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -30,15 +29,17 @@ public class ChatController {
     private BookRepository bookRepository;
 
     @Autowired
+    private ChatbotHistoryRepository chatbotHistoryRepository;
+
+    @Autowired
     private Classifier classifier;
 
     private final List<String> kategoriList = List.of(
             "informatika", "penerbangan", "akuntansi", "industri",
             "sejarah", "agama", "filsafat", "bisnis", "manajemen",
-            "elektronika", "bahasa"
+            "elektronika", "bahasa","sistem","computer","komputer","pemrograman","informasi","aircraft","flight","teknik","pajak","ekonomi","kamus"
     );
 
-    // 🔑 Keyword jam buka
     private final List<String> keywordsJamBuka = List.of(
         "jam buka","jam tutup","jam operasional","jam layanan","jam kerja","jam pelayanan",
         "jam aktif","jam operasional perpustakaan","jam layanan perpustakaan","jam buka perpustakaan",
@@ -54,25 +55,46 @@ public class ChatController {
 
     @PostMapping("/chat")
     public ResponseEntity<?> chat(@RequestBody Map<String, String> payload) {
+        String npm = payload.get("npm");
         String message = payload.get("message");
         System.out.println("📨 Pertanyaan user: " + message);
 
         try {
+            // Ambil histori terakhir (untuk context prompt)
+            List<ChatbotHistory> histories = chatbotHistoryRepository.findTop5ByNpmOrderByCreatedAtDesc(npm);
+            Collections.reverse(histories); // urutkan dari lama ke baru
+
+            StringBuilder prompt = new StringBuilder("Percakapan sebelumnya:\n");
+            for (ChatbotHistory h : histories) {
+                prompt.append("User: ").append(h.getPertanyaan()).append("\n");
+                prompt.append("AI: ").append(h.getAiResponse()).append("\n");
+            }
+            prompt.append("User: ").append(message).append("\n");
+            prompt.append("AI:");
+
             String klasifikasi = classifier.klasifikasikan(message);
             System.out.println("🔍 Klasifikasi pertanyaan: " + klasifikasi);
 
+            // 🔑 Cek pertanyaan jam buka
             if (keywordsJamBuka.stream().anyMatch(message.toLowerCase()::contains)) {
-                return ResponseEntity.ok(new ChatResponse(
-                        "Perpustakaan Universitas Nurtanio buka pukul 08.00 - 15.00 WIB, Senin sampai Jumat."));
+                String jamBuka = "Perpustakaan Universitas Nurtanio buka pukul 08.00 - 15.00 WIB, Senin sampai Jumat.";
+
+                // Simpan ke DB
+                ChatbotHistory history = new ChatbotHistory();
+                history.setNpm(npm);
+                history.setPertanyaan(message);
+                history.setAiResponse(jamBuka);
+                chatbotHistoryRepository.save(history);
+
+                return ResponseEntity.ok(new ChatResponse(jamBuka));
             }
 
+            // 🔑 Cek kategori lokal
             if (klasifikasi.equalsIgnoreCase("lokal")) {
                 for (String keyword : kategoriList) {
                     if (message.toLowerCase().contains(keyword)) {
-
                         List<Book> books = bookRepository.findByTitleContainingIgnoreCase(keyword);
 
-                        //Parse jumlah buku jika user menyebut angka
                         Pattern p = Pattern.compile("(\\d+)\\s*buku");
                         Matcher m = p.matcher(message);
                         List<Book> hasil;
@@ -84,46 +106,45 @@ public class ChatController {
                             hasil = books;
                         }
 
-                        System.out.println("🔎 Cari berdasarkan judul, keyword: " + keyword);
-                        System.out.println("📚 Jumlah buku ditemukan: " + hasil.size());
-
+                        String responseText;
                         if (hasil.isEmpty()) {
-                            return ResponseEntity.ok(new ChatResponse("Maaf, tidak ditemukan buku kategori " + keyword + "."));
+                            responseText = "Maaf, tidak ditemukan buku kategori " + keyword + ".";
+                        } else {
+                            String daftar = hasil.stream()
+                                    .map(book -> "- " + book.getTitle())
+                                    .collect(Collectors.joining("\n"));
+
+                            responseText = "Berikut adalah " + hasil.size() + " buku kategori " + keyword + ":\n" + daftar;
                         }
 
-                        String daftar = hasil.stream()
-                                .map(book -> "- " + book.getTitle())
-                                .collect(Collectors.joining("\n"));
+                        // Simpan ke DB
+                        ChatbotHistory history = new ChatbotHistory();
+                        history.setNpm(npm);
+                        history.setPertanyaan(message);
+                        history.setAiResponse(responseText);
+                        chatbotHistoryRepository.save(history);
 
-                        return ResponseEntity.ok(new ChatResponse(
-                                "Berikut adalah " + hasil.size() + " buku kategori " + keyword + ":\n" + daftar));
+                        return ResponseEntity.ok(new ChatResponse(responseText));
                     }
                 }
-                return ResponseEntity.ok(new ChatResponse("Kategori buku tidak dikenali."));
             }
 
-            return togetherAIService.getChatCompletion(message)
-                    .map(ResponseEntity::ok)
-                    .onErrorResume(e -> {
-                        String errMsg = e.getMessage();
-                        if (errMsg != null && errMsg.contains("429")) {
-                            return Mono.just(ResponseEntity
-                                    .status(HttpStatus.TOO_MANY_REQUESTS)
-                                    .body(new ChatResponse("⚠️ AI sedang sibuk, silakan coba beberapa saat lagi.")));
-                        } else if (errMsg != null && errMsg.contains("422")) {
-                            return Mono.just(ResponseEntity
-                                    .status(HttpStatus.UNPROCESSABLE_ENTITY)
-                                    .body(new ChatResponse("⚠️ Gagal memproses pertanyaan ke AI. Coba pertanyaan lain.")));
-                        }
-                        return Mono.just(ResponseEntity
-                                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .body(new ChatResponse("⚠️ Terjadi kesalahan di server.")));
-                    }).block();
+            // 🔑 Jika bukan keyword jam buka atau kategori -> kirim ke TogetherAI dengan prompt context
+            String aiResponse = togetherAIService.getChatCompletion(prompt.toString()).block().getReply();
+
+            // Simpan ke DB
+            ChatbotHistory history = new ChatbotHistory();
+            history.setNpm(npm);
+            history.setPertanyaan(message);
+            history.setAiResponse(aiResponse);
+            chatbotHistoryRepository.save(history);
+
+            return ResponseEntity.ok(new ChatResponse(aiResponse));
 
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ChatResponse("⚠️ Kesalahan internal server."));
+                    .body(new ChatResponse("⚠️ Terjadi kesalahan di server."));
         }
     }
 }

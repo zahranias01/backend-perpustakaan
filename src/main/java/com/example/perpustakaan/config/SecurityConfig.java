@@ -67,7 +67,7 @@ public class SecurityConfig {
                     "/api/sejarah/**",
                     "/api/administrasinegara/**"
                 ).permitAll()
-                .requestMatchers("/api/bookmark/**").authenticated()
+                .requestMatchers("/api/bookmark/**", "/api/peminjaman/**").authenticated()
                 .anyRequest().authenticated()
             )
 
@@ -83,7 +83,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
             "http://localhost:5173",
-            "https://nurtanio-perpustakaan.netlify.app"
+            "https://nurtanio-perpustakaan.netlify.app",
+            "http://192.168.100.201:5173"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));

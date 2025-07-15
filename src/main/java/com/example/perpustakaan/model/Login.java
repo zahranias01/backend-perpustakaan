@@ -1,3 +1,4 @@
+
 package com.example.perpustakaan.model;
 
 import jakarta.persistence.*;
@@ -23,4 +24,17 @@ public class Login {
     
     @Column(nullable = false)
     private String password;
+
+    private String role; // Tambahkan ini di dalam class Login
+
+// Getter & Setter
+public String getRole() {
+    return role;
+}
+
+public void setRole(String role) {
+    this.role = role;
+}
+
+    
 }
