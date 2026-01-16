@@ -21,6 +21,7 @@ public class UserService {
         user.setNama(nama);
         user.setNpm(npm);
         user.setPassword(hashedPassword); // Simpan password yang di-hash
+        user.setRole("USER"); // ✅ Tambahkan default role USER
         return userRepository.save(user);
     }
 

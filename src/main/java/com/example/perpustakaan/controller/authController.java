@@ -38,14 +38,20 @@ public class authController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
         }
 
-        String token = jwtUtil.generateToken(login.getNpm());
+        // ✅ Pastikan role memiliki prefix ROLE_
+        String role = login.getRole();
+        if (!role.startsWith("ROLE_")) {
+            role = "ROLE_" + role;
+        }
+
+        String token = jwtUtil.generateToken(login.getNpm(), role);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Login sukses! Nama Pengguna: " + login.getNama());
         response.put("nama", login.getNama());
         response.put("npm", login.getNpm());
         response.put("token", token);
-        response.put("role", login.getRole()); 
+        response.put("role", role); // update ke role yang sudah dipastikan ada prefix ROLE_
 
         return ResponseEntity.ok(response);
     }

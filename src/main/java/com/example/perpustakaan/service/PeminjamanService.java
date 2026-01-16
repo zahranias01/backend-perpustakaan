@@ -16,121 +16,124 @@ public class PeminjamanService {
     @Autowired
     private PeminjamanRepository peminjamanRepository;
 
-    /**
-     * Tambah peminjaman, cek duplikat berdasarkan npm & biblioId
-     */
-    public String addPeminjaman(Peminjaman peminjaman) {
-        boolean exists = peminjamanRepository.existsByNpmAndBiblioId(
-                peminjaman.getNpm(), peminjaman.getBiblioId()
-        );
-        if (exists) {
-            return "Buku sudah ada di daftar peminjaman";
-        }
-
-        if (peminjaman.getStatus() == null || peminjaman.getStatus().isBlank()) {
-            peminjaman.setStatus("PENDING");
-        }
-
-        if (peminjaman.getTitle() == null) {
-            peminjaman.setTitle("");
-        }
-
-        if (peminjaman.getTanggalPinjam() == null) {
-            peminjaman.setTanggalPinjam(LocalDate.now());
-        }
-
-        peminjamanRepository.save(peminjaman);
-        return "Berhasil menambahkan ke peminjaman";
-    }
-
-    /**
-     * Simpan peminjaman dengan npm eksplisit
-     */
+    // Simpan peminjaman baru (USER)
     public Peminjaman simpanPeminjaman(String npm, Peminjaman p) {
         p.setNpm(npm);
-
         if (p.getStatus() == null || p.getStatus().isBlank()) {
             p.setStatus("PENDING");
         }
-
-        if (p.getTitle() == null) {
-            p.setTitle("");
+        if (p.getTanggalPengajuan() == null) {
+            p.setTanggalPengajuan(LocalDate.now());
         }
-
-        if (p.getTanggalPinjam() == null) {
-            p.setTanggalPinjam(LocalDate.now());
-        }
-
         return peminjamanRepository.save(p);
     }
 
-    /**
-     * Ambil daftar peminjaman user berdasar npm
-     */
+    // Cari semua peminjaman berdasarkan npm
     public List<Peminjaman> getPeminjamanByNpm(String npm) {
         return peminjamanRepository.findByNpm(npm);
     }
 
-    /**
-     * Update peminjaman berdasar npm & biblioId
-     */
-    public boolean updatePeminjaman(String npm, int biblioId, Peminjaman updatedPeminjaman) {
-        Optional<Peminjaman> optional = peminjamanRepository.findByNpmAndBiblioId(npm, biblioId);
-
-        if (optional.isPresent()) {
-            Peminjaman peminjaman = optional.get();
-
-            if (updatedPeminjaman.getTitle() != null) {
-                peminjaman.setTitle(updatedPeminjaman.getTitle());
-            }
-
-            if (updatedPeminjaman.getStatus() != null) {
-                peminjaman.setStatus(updatedPeminjaman.getStatus());
-            }
-
-            if (updatedPeminjaman.getTanggalKembali() != null) {
-                peminjaman.setTanggalKembali(updatedPeminjaman.getTanggalKembali());
-            }
-
-            peminjamanRepository.save(peminjaman);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Update hanya tanggal kembali
-     */
+    // Update tanggal dikembalikan (USER)
     @Transactional
-    public boolean updateTanggalKembali(String npm, int biblioId, LocalDate tanggalKembali) {
+    public boolean updateTanggalDikembalikan(String npm, int biblioId, LocalDate tgl) {
         Optional<Peminjaman> optional = peminjamanRepository.findByNpmAndBiblioId(npm, biblioId);
-
         if (optional.isPresent()) {
-            Peminjaman peminjaman = optional.get();
-            peminjaman.setTanggalKembali(tanggalKembali);
-            peminjamanRepository.save(peminjaman);
+            Peminjaman p = optional.get();
+            p.setTanggalDikembalikan(tgl);
+            p.setStatus("DIKEMBALIKAN");
+
+            // HITUNG DENDA
+            if (p.getTanggalKembali() != null && tgl.isAfter(p.getTanggalKembali())) {
+                int hariTerlambat = (int) java.time.temporal.ChronoUnit.DAYS.between(p.getTanggalKembali(), tgl);
+                int dendaPerHari = 1000; // misal Rp 1000 per hari
+                p.setDenda(hariTerlambat * dendaPerHari);
+            } else {
+                p.setDenda(0);
+            }
             return true;
         }
-
         return false;
     }
 
-    /**
-     * Hapus peminjaman berdasar npm & biblioId
-     */
+    // Hapus peminjaman (USER)
     @Transactional
     public void deletePeminjaman(String npm, int biblioId) {
-        System.out.printf(">> Hapus peminjaman: npm=%s, biblioId=%d%n", npm, biblioId);
-
-        boolean exists = peminjamanRepository.existsByNpmAndBiblioId(npm, biblioId);
-        System.out.println(">> Exists? " + exists);
-
-        if (!exists) {
-            throw new RuntimeException("Peminjaman tidak ditemukan");
-        }
-
         peminjamanRepository.deleteByNpmAndBiblioId(npm, biblioId);
-        System.out.println(">> Berhasil dihapus.");
     }
+
+    // Admin - get all
+    public List<Peminjaman> getAllPeminjaman() {
+        return peminjamanRepository.findAll();
+    }
+
+    // Admin - approve
+    @Transactional
+    public boolean approvePeminjaman(Long id, LocalDate tglPinjam, LocalDate tglKembali) {
+        Optional<Peminjaman> optional = peminjamanRepository.findById(id);
+        if(optional.isEmpty()) return false;
+            Peminjaman p = optional.get();
+
+            // Cek apakah buku sedang dipinjam user lain
+            boolean alreadyLoaned = peminjamanRepository.existsByBiblioIdAndStatus(p.getBiblioId(), "APPROVED");
+            if(!alreadyLoaned) {
+                // jika sudah ada, reject otomatis
+                p.setStatus("REJECTED");
+                peminjamanRepository.save(p);
+                return false; // bisa pakai return false untuk kasih tahu frontend
+            }
+
+            // jika tidak ada, approve
+            p.setStatus("APPROVED");
+            p.setTanggalPinjam(tglPinjam);
+            p.setTanggalKembali(tglKembali);
+            peminjamanRepository.save(p);
+            return true;
+    }
+
+
+    // Admin - update status
+    @Transactional
+    public boolean updateStatusPeminjaman(Long id, String status) {
+        Optional<Peminjaman> optional = peminjamanRepository.findById(id);
+        if (optional.isPresent()) {
+            Peminjaman p = optional.get();
+            p.setStatus(status);
+            return true;
+        }
+        return false;
+    }
+
+    // Admin - update tanggal kembali
+    @Transactional
+    public boolean updateTanggalKembaliAdmin(Long id, LocalDate tanggalKembali) {
+        Optional<Peminjaman> optional = peminjamanRepository.findById(id);
+        if (optional.isPresent()) {
+            Peminjaman p = optional.get();
+            p.setTanggalKembali(tanggalKembali);
+            return true;
+        }
+        return false;
+    }
+
+    // Admin - delete by id
+    @Transactional
+    public void deletePeminjamanById(Long id) {
+        peminjamanRepository.deleteById(id);
+    }
+
+    @Transactional
+    public boolean cancelPeminjamanUser(String npm, int biblioId) {
+        Optional<Peminjaman> optional = peminjamanRepository.findByNpmAndBiblioId(npm, biblioId);
+        if(optional.isPresent()) {
+            Peminjaman p = optional.get();
+            if(!p.getStatus().equalsIgnoreCase("PENDING")) {
+                // Hanya hapus data user-side, jangan ubah status global
+                p.setNpm(null); // atau tandai "dihapus user"
+                return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
 }

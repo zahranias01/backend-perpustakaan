@@ -1,6 +1,5 @@
 package com.example.perpustakaan.model;
 
-
 import jakarta.persistence.*;
 import java.time.LocalDate;
 
@@ -22,36 +21,38 @@ public class Peminjaman {
     private String title;
 
     @Column(nullable = false)
-    private String status = "PENDING"; // ✅ default value di Java
+    private String status = "pending"; // ✅ default sesuai query SQL
 
-    @Column(name = "tanggal_pinjam", nullable = false, columnDefinition = "DATE DEFAULT CURRENT_DATE")
-    private LocalDate tanggalPinjam; // ✅ tanggal pinjam otomatis current_date
+    // === tanggal ===
+    @Column(name = "tanggal_pengajuan", nullable = false, columnDefinition = "DATE DEFAULT CURRENT_DATE")
+    private LocalDate tanggalPengajuan = LocalDate.now(); // ✅ otomatis isi hari ini
+
+    @Column(name = "tanggal_pinjam")
+    private LocalDate tanggalPinjam; // ✅ diisi admin saat approve
 
     @Column(name = "tanggal_kembali")
-    private LocalDate tanggalKembali; // opsional
+    private LocalDate tanggalKembali; // ✅ batas waktu pengembalian
+
+    @Column(name = "tanggal_dikembalikan")
+    private LocalDate tanggalDikembalikan; // ✅ diisi user via kalender saat balikin
+
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    private Integer denda = 0; // ✅ default 0
 
     public Peminjaman() {
-        // default constructor tetap set status & tanggalPinjam
-        this.status = "PENDING";
-        this.tanggalPinjam = LocalDate.now();
+        this.status = "pending";
+        this.tanggalPengajuan = LocalDate.now();
     }
 
     public Peminjaman(String npm, Integer biblioId, String title) {
         this.npm = npm;
         this.biblioId = biblioId;
         this.title = title;
-        this.status = "PENDING";
-        this.tanggalPinjam = LocalDate.now();
+        this.status = "pending";
+        this.tanggalPengajuan = LocalDate.now();
     }
 
-    public Peminjaman(String npm, Integer biblioId, String title, String status) {
-        this.npm = npm;
-        this.biblioId = biblioId;
-        this.title = title;
-        this.status = status != null ? status : "PENDING";
-        this.tanggalPinjam = LocalDate.now();
-    }
-
+    // === Getter Setter ===
     public Long getId() {
         return id;
     }
@@ -85,11 +86,15 @@ public class Peminjaman {
     }
 
     public void setStatus(String status) {
-        if (status == null || status.isBlank()) {
-            this.status = "PENDING";
-        } else {
-            this.status = status;
-        }
+        this.status = (status == null || status.isBlank()) ? "pending" : status;
+    }
+
+    public LocalDate getTanggalPengajuan() {
+        return tanggalPengajuan;
+    }
+
+    public void setTanggalPengajuan(LocalDate tanggalPengajuan) {
+        this.tanggalPengajuan = tanggalPengajuan;
     }
 
     public LocalDate getTanggalPinjam() {
@@ -106,5 +111,21 @@ public class Peminjaman {
 
     public void setTanggalKembali(LocalDate tanggalKembali) {
         this.tanggalKembali = tanggalKembali;
+    }
+
+    public LocalDate getTanggalDikembalikan() {
+        return tanggalDikembalikan;
+    }
+
+    public void setTanggalDikembalikan(LocalDate tanggalDikembalikan) {
+        this.tanggalDikembalikan = tanggalDikembalikan;
+    }
+
+    public Integer getDenda() {
+        return denda;
+    }
+
+    public void setDenda(Integer denda) {
+        this.denda = denda;
     }
 }

@@ -31,34 +31,56 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
+        String path = request.getRequestURI();
+        System.out.println("[JwtAuthFilter] PATH: " + path);
+        
+        // 🔥 Skip JWT check for /auth/**
+        if (path.contains("/auth/")) {
+            System.out.println("[JwtAuthFilter] Skipping auth filter for path: " + path);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
         System.out.println("[JwtAuthFilter] Authorization header: " + authHeader);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            // ❗Tidak ada token → lanjutkan ke filter berikutnya
             filterChain.doFilter(request, response);
             return;
         }
 
         String token = authHeader.substring(7);
-        String npm;
+        String npm = null;
+        String role = null;
 
         try {
             npm = jwtUtil.validateTokenAndGetNpm(token);
-            System.out.println("[JwtAuthFilter] Token valid, npm: " + npm);
+            role = jwtUtil.getRoleFromToken(token);
+            System.out.println("[JwtAuthFilter] Token valid, npm: " + npm + ", role: " + role);
         } catch (Exception e) {
             System.out.println("[JwtAuthFilter] Token invalid: " + e.getMessage());
-            // ❗Jangan set authentication jika token tidak valid
             filterChain.doFilter(request, response);
             return;
         }
 
-        if (npm != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (npm != null && role != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            // Pastikan role tidak kosong
+            if (role.isEmpty()) {
+                System.out.println("[JwtAuthFilter] WARNING: role kosong, authentication tidak di-set");
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Pastikan role diawali ROLE_
+            if (!role.startsWith("ROLE_")) {
+                role = "ROLE_" + role;
+            }
+
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             npm,
                             null,
-                            List.of(new SimpleGrantedAuthority("ROLE_USER")) // 🔷 Tambahkan authority minimal
+                            List.of(new SimpleGrantedAuthority(role))
                     );
 
             authentication.setDetails(
@@ -66,7 +88,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            System.out.println("[JwtAuthFilter] Authentication set for user: " + npm);
+            System.out.println("[JwtAuthFilter] Authentication set for user: " + npm + " with role: " + role);
+        } else if (role == null) {
+            System.out.println("[JwtAuthFilter] WARNING: Role dari token null, authentication tidak di-set");
         }
 
         filterChain.doFilter(request, response);
